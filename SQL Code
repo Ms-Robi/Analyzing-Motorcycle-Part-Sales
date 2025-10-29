@@ -1,0 +1,63 @@
+-- Net revenue for each product line and grouping results by month and warehouse. The results should be filtered so that only "Wholesale" orders are included.
+
+SELECT product_line, TO_CHAR(date,'Month')AS month, warehouse, SUM(total - payment_fee) AS net_revenue FROM Sales
+WHERE client_type = 'Wholesale'
+GROUP BY product_line, month, warehouse
+ORDER BY product_line, month, warehouse DESC;
+
+-- The finance team is exploring ways to reduce transaction costs and improve profitability. They’ve asked you to determine the most profitable payment method for each warehouse in each month. Calculate the net revenue for each payment method,
+   grouped by warehouse and month, and identify the top payment method for each combination.
+
+SELECT t1.month, warehouse, payment, net_revenue
+FROM(
+		SELECT EXTRACT(MONTH FROM date) AS month,
+		       warehouse,
+		       payment,
+		       SUM(total - payment_fee) AS net_revenue,
+			   ROW_NUMBER()OVER(PARTITION BY warehouse, EXTRACT(MONTH FROM date) ORDER BY SUM(total - payment_fee) DESC) AS num
+		FROM Sales
+		GROUP BY EXTRACT(MONTH FROM date), warehouse, payment) AS t1
+WHERE num = 1;
+
+-- The marketing team is planning a targeted campaign and wants to know the most popular product lines for retail and wholesale customers. They have given you the task to find the top 3 most ordered product lines for each client type.
+
+ALTERNATIVE 1: USING A SUBQUERY
+
+SELECT  product_line, 
+		    client_type, 
+	      product_line_count 
+FROM(
+SELECT  product_line, 
+		    client_type, 
+	      COUNT(order_number) AS product_line_count ,
+		    DENSE_RANK() OVER (PARTITION BY client_type ORDER BY COUNT(order_number) DESC) AS rank
+FROM Sales
+GROUP BY product_line, client_type) AS t2
+
+WHERE rank <= 3;
+
+ALTERNATIVE 2: USING CTE
+
+WITH Retail AS(
+	SELECT product_line, 
+		     client_type, 
+	       COUNT(order_number) AS product_line_count
+  FROM Sales
+	WHERE client_type = 'Retail'
+	GROUP BY product_line, client_type
+	ORDER BY product_line_count DESC
+	LIMIT 3),
+
+Wholesale AS(
+	SELECT product_line, 
+		   client_type, 
+	       COUNT(order_number) AS product_line_count
+  FROM Sales
+	WHERE client_type = 'Wholesale'
+	GROUP BY product_line, client_type
+	ORDER BY product_line_count DESC
+	LIMIT 3)
+
+SELECT * FROM Retail
+UNION ALL
+SELECT * FROM Wholesale;
